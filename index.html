@@ -1,41 +1,278 @@
 <!DOCTYPE html>
-<html>
+<html lang="ur">
 <head>
-<title>Live Signal Bot</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Bot - PRO MAX</title>
 <style>
-body{background:#0b0e11;color:white;font-family:sans-serif;text-align:center;padding:20px}
-.box{background:#1e2329;padding:20px;border-radius:15px;margin-top:20px}
-h1{color:#f0b90b}
-#price{font-size:40px;color:#0ecb81}
-button{background:#f0b90b;border:none;padding:12px 25px;border-radius:10px;font-weight:bold;font-size:16px}
+*{box-sizing:border-box;font-family:Arial} body{margin:0;background:#0f172a;color:#fff;padding:12px}
+.card{background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px}
+.green{color:#22c55e}.red{color:#ef4444}.yellow{color:#facc15}
+button{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer}
+.btn-green{background:#22c55e;color:#fff}.btn-red{background:#ef4444;color:#fff}.btn-gray{background:#334155;color:#fff;padding:10px;font-size:13px;margin-top:8px}.btn-blue{background:#2563eb;color:#fff;padding:10px;font-size:13px;margin-top:8px}.btn-orange{background:#f97316;color:#fff;padding:10px;font-size:13px;margin-top:8px}
+.flex{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #334155}
+.signal{background:#020617;border-left:4px solid #22c55e;padding:12px;border-radius:10px;margin-top:10px}
+.small{font-size:12px;color:#94a3b8}.big{font-size:26px;font-weight:bold}
+.live{width:9px;height:9px;background:#22c55e;border-radius:50%;display:inline-block}
+.up{color:#22c55e}.down{color:#ef4444}
+.badge{font-size:11px;background:#22c55e;color:#fff;padding:3px 8px;border-radius:20px}
+.bar{height:8px;background:#334155;border-radius:10px;overflow:hidden;margin-top:4px}
+.barfill{height:100%;background:#22c55e}
+input[type=range]{width:100%} input[type=checkbox]{width:20px;height:20px}
+canvas{width:100%;height:50px;background:#020617;border-radius:8px;margin-top:4px}
+.setBox{background:#020617;padding:10px;border-radius:10px;margin-top:8px}
 </style>
 </head>
 <body>
-<h1>🚀 LIVE SIGNAL BOT</h1>
-<p>BTC / USDT - Live Rate</p>
-<div class="box">
-<div id="price">Loading...</div>
-<p id="signal">Signal Check Ho Raha Hai...</p>
-<p id="time"></p>
-<button onclick="getPrice()">Refresh Signal</button>
+<h2>🤖 Signal Bot <span class="small">PRO MAX</span></h2>
+<p class="small"><span class="live"></span> LIVE | Sound + Chart + Backtest + Settings</p>
+
+<div class="card">
+<div class="flex"><span>🎯 Accuracy</span><b class="big" id="acc">--%</b></div>
+<div class="flex"><span class="small" id="accDetail">No signal yet</span><span class="small" id="sigCount">0 / 4 Aaj</span></div>
+<div class="flex"><span>Win Streak</span><b id="streak">0</b></div>
+<div class="flex"><span class="small">Status</span><span class="small" id="status">Band Hai</span></div>
+<div class="flex"><span class="small">Last Verify</span><span class="small" id="lastVerify">-</span></div>
+<button class="btn-green" id="botBtn" onclick="toggleBot()">▶ BOT START KARO</button>
+<button class="btn-blue" onclick="checkNow()">🔍 ABHI CHECK KARO</button>
+<button class="btn-orange" onclick="runBacktest()">🧪 BACKTEST - Kal Kitna Sahi Tha?</button>
+<div id="backtestRes" class="small" style="margin-top:8px"></div>
+<button class="btn-gray" onclick="clearHistory()">🗑 History Clear Karo</button>
+<label class="small"><input type="checkbox" id="soundOn" checked> 🔊 Sound + Vibration ON</label>
 </div>
-<p style="font-size:12px;color:gray">Sirf Signal - No Buy / Sell - Apni Research Zaroor Karo</p>
+
+<div class="card">
+<h3>⚙️ Apni Settings</h3>
+<p class="small">Min Confidence: <b id="confVal">85%</b></p>
+<input type="range" id="minConf" min="60" max="95" value="85" oninput="document.getElementById('confVal').innerText=this.value+'%'; saveSettings()">
+<p class="small">Din me Max Signals: <b id="maxVal">4</b></p>
+<input type="range" id="maxSig" min="1" max="10" value="4" oninput="document.getElementById('maxVal').innerText=this.value; saveSettings()">
+<div class="setBox" id="coinSelect"></div>
+<p class="small">Sirf tick wale coins par signal aayega. LTC, BTC jo chahiye rakho, baaki hata do.</p>
+</div>
+
+<div class="card">
+<h3>📊 Har Coin Ki Accuracy</h3>
+<div id="coinAcc"><p class="small">Abhi koi verified signal nahi</p></div>
+</div>
+
+<div class="card">
+<h3>💰 Live Rates + Chart <span class="small" id="liveTime"></span></h3>
+<div id="prices">Start dabao...</div>
+</div>
+
+<div class="card">
+<h3>🔍 Live Filter Check</h3>
+<div id="filterBox"><p class="small">Bot start karo to score dikhega</p></div>
+</div>
+
+<div class="card">
+<h3>📢 Signals History - Auto Verified</h3>
+<div id="signalList"><p class="small">Abhi koi signal nahi</p></div>
+</div>
+
 <script>
-async function getPrice(){
-  try{
-    let r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-    let d = await r.json();
-    let p = parseFloat(d.price);
-    document.getElementById('price').innerText = "$" + p.toLocaleString();
-    let s = document.getElementById('signal');
-    if(p % 100 < 50){ s.innerText = "🟢 SIGNAL: BUY Zone - Price Neeche Hai"; s.style.color="#0ecb81"; }
-    else { s.innerText = "🔴 SIGNAL: WAIT - Price Upar Hai"; s.style.color="#f6465d"; }
-    document.getElementById('time').innerText = new Date().toLocaleString();
-  }catch(e){ document.getElementById('price').innerText = "Net Error - Dobara Try Karo"; }
+const BASE="https://data-api.binance.vision";
+const ALL_COINS=["BTCUSDT","ETHUSDT","LTCUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"];
+let botOn=false, priceTimer=null, checkTimer=null, verifyTimer=null;
+let settings = JSON.parse(localStorage.getItem('botSettings') || '{"minConf":85,"maxSig":4,"coins":["BTCUSDT","ETHUSDT","LTCUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"]}');
+let data = JSON.parse(localStorage.getItem('botData') || '{"total":0,"wins":0,"sigToday":0,"date":"","signals":[],"streak":0}');
+let today = new Date().toDateString();
+if(data.date!==today){ data.sigToday=0; data.date=today; saveData(); }
+function getCoins(){ return settings.coins.length?settings.coins:ALL_COINS; }
+function saveSettings(){
+  settings.minConf=parseInt(document.getElementById('minConf').value);
+  settings.maxSig=parseInt(document.getElementById('maxSig').value);
+  settings.coins=[...document.querySelectorAll('.coinChk:checked')].map(e=>e.value);
+  localStorage.setItem('botSettings', JSON.stringify(settings));
+  document.getElementById('sigCount').innerText=data.sigToday+" / "+settings.maxSig+" Aaj";
 }
-getPrice();
-setInterval(getPrice, 10000);
+function buildSettings(){
+  document.getElementById('minConf').value=settings.minConf; document.getElementById('confVal').innerText=settings.minConf+"%";
+  document.getElementById('maxSig').value=settings.maxSig; document.getElementById('maxVal').innerText=settings.maxSig;
+  document.getElementById('coinSelect').innerHTML=ALL_COINS.map(c=>`<label class="flex"><span>${c}</span><input type="checkbox" class="coinChk" value="${c}" ${settings.coins.includes(c)?'checked':''} onchange="saveSettings()"></label>`).join('');
+}
+buildSettings();
+function saveData(){ localStorage.setItem('botData', JSON.stringify(data)); updateUI(); }
+function updateUI(){
+  let acc = data.total>0 ? Math.round((data.wins/data.total)*100) : 0;
+  document.getElementById('acc').innerText = data.total>0 ? acc+"%" : "--%";
+  document.getElementById('accDetail').innerText = `Total: ${data.total} | Win: ${data.wins} | Loss: ${data.total-data.wins}`;
+  document.getElementById('sigCount').innerText = data.sigToday+" / "+settings.maxSig+" Aaj";
+  document.getElementById('streak').innerText = data.streak||0;
+  renderSignals(); renderCoinAcc();
+}
+function renderCoinAcc(){
+  let el=document.getElementById('coinAcc');
+  let done=data.signals.filter(s=>s.result);
+  if(done.length===0){ el.innerHTML="<p class='small'>Abhi koi verified signal nahi</p>"; return; }
+  let map={};
+  done.forEach(s=>{ if(!map[s.coin]) map[s.coin]={t:0,w:0}; map[s.coin].t++; if(s.result==="WIN") map[s.coin].w++; });
+  let html="";
+  for(let c in map){ let a=Math.round((map[c].w/map[c].t)*100); let cls=a>=60?"green":a>=40?"yellow":"red"; html+=`<div class="flex"><span>${c}</span><span><b class="${cls}">${a}%</b> <span class="small">${map[c].w}/${map[c].t} Win</span></span></div><div class="bar"><div class="barfill" style="width:${a}%"></div></div>`; }
+  el.innerHTML=html;
+}
+function renderSignals(){
+  let el=document.getElementById('signalList');
+  if(data.signals.length===0){ el.innerHTML="<p class='small'>Abhi koi signal nahi</p>"; return; }
+  el.innerHTML="";
+  [...data.signals].reverse().forEach(s=>{
+    let cls = s.result==="WIN" ? "green" : s.result==="LOSS" ? "red" : "yellow";
+    let resTxt = s.result ? (s.result==="WIN" ? `✅ VERIFIED WIN - ${s.verifyReason||""} - $${s.entry} -> $${s.exitPrice}` : `❌ VERIFIED LOSS - ${s.verifyReason||""} - $${s.entry} -> $${s.exitPrice}`) : `⏳ VERIFY HONE WALA HAI - ${s.leftTxt||""}`;
+    el.innerHTML+=`<div class="signal"><b>🚀 ${s.coin} ${s.dir}</b> <span class="badge">${s.conf}% Conf</span> <span class="small">${s.time}</span><br>Entry: <b>$${s.entry}</b> | Target: <span class="green">$${s.target}</span> | SL: <span class="red">$${s.sl}</span><br><span class="small">Filters: ${s.filters}</span><br><span class="${cls}">${resTxt}</span></div>`;
+  });
+}
+// SOUND + VIBRATION
+function playAlert(){
+  if(!document.getElementById('soundOn').checked) return;
+  try{ if(navigator.vibrate) navigator.vibrate([300,200,300,200,500]); }catch(e){}
+  try{
+    let ctx=new (window.AudioContext||window.webkitAudioContext)();
+    [0,0.3,0.6].forEach((t,i)=>{ let o=ctx.createOscillator(), g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=880; o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+0.2); });
+  }catch(e){}
+}
+function toggleBot(){
+  botOn=!botOn;
+  let b=document.getElementById('botBtn');
+  b.innerText = botOn ? '⏸ BOT BAND KARO' : '▶ BOT START KARO';
+  b.className = botOn ? 'btn-red' : 'btn-green';
+  if(botOn){
+    document.getElementById('status').innerText="Chal Raha Hai...";
+    updatePrices(); checkAll(); checkNow();
+    priceTimer=setInterval(updatePrices, 10000);
+    checkTimer=setInterval(checkAll, 60*1000);
+    verifyTimer=setInterval(checkNow, 30*1000);
+    data.signals.filter(s=>!s.result).forEach(s=> startResultTimer(s));
+  } else {
+    document.getElementById('status').innerText="Band Hai";
+    clearInterval(priceTimer); clearInterval(checkTimer); clearInterval(verifyTimer);
+  }
+}
+async function checkNow(){
+  document.getElementById('lastVerify').innerText=new Date().toLocaleTimeString();
+  let pending=data.signals.filter(s=>!s.result);
+  if(pending.length===0) return;
+  for(let s of pending){
+    let curr=await getPrice(s.coin);
+    if(curr===0) continue;
+    if(curr >= parseFloat(s.target)) finishSignal(s, curr, "WIN", "🎯 Target Hit");
+    else if(curr <= parseFloat(s.sl)) finishSignal(s, curr, "LOSS", "🛑 Stoploss Hit");
+    else if(Date.now() >= s.endTime){
+      if(curr > parseFloat(s.entry)) finishSignal(s, curr, "WIN", "⏰ 30min - Price Upar");
+      else finishSignal(s, curr, "LOSS", "⏰ 30min - Price Neeche");
+    }
+  }
+}
+function finishSignal(s, curr, result, reason){
+  s.exitPrice=curr.toFixed(4); s.result=result; s.verifyReason=reason;
+  if(result==="WIN"){ data.wins++; data.streak=(data.streak||0)+1; } else data.streak=0;
+  saveData();
+}
+async function getPrice(symbol){
+  try{ let r=await fetch(`${BASE}/api/v3/ticker/price?symbol=${symbol}`); let d=await r.json(); return parseFloat(d.price); }catch(e){ return 0; }
+}
+function drawChart(canvasId, closes){
+  let cv=document.getElementById(canvasId); if(!cv) return;
+  let ctx=cv.getContext('2d'); let w=cv.width=300, h=cv.height=50;
+  ctx.clearRect(0,0,w,h);
+  let min=Math.min(...closes), max=Math.max(...closes);
+  ctx.beginPath(); ctx.strokeStyle= closes[closes.length-1]>=closes[0] ? '#22c55e' : '#ef4444'; ctx.lineWidth=2;
+  closes.forEach((p,i)=>{ let x=(i/(closes.length-1))*w; let y=h-((p-min)/(max-min||1))*h; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.stroke();
+}
+async function updatePrices(){
+  let html="";
+  for(let c of getCoins()){
+    let p=await getPrice(c);
+    let k=await getKlines(c,'15m');
+    let prev = window['prev_'+c] || p;
+    let arrow = p>=prev ? "▲" : "▼"; let cls = p>=prev ? "up" : "down";
+    window['prev_'+c]=p;
+    html+=`<div class="flex"><span>${c}</span><b class="${cls}">${arrow} $${p.toFixed(2)}</b></div><canvas id="chart_${c}"></canvas>`;
+  }
+  document.getElementById('prices').innerHTML=html;
+  for(let c of getCoins()){
+    let k=await getKlines(c,'15m'); if(k) drawChart('chart_'+c, k.closes.slice(-30));
+  }
+  document.getElementById('liveTime').innerText=" - "+new Date().toLocaleTimeString();
+}
+async function getKlines(symbol, tf){
+  try{ let r=await fetch(`${BASE}/api/v3/klines?symbol=${symbol}&interval=${tf}&limit=100`); let d=await r.json(); return {closes:d.map(x=>parseFloat(x[4])), highs:d.map(x=>parseFloat(x[2])), lows:d.map(x=>parseFloat(x[3])), vols:d.map(x=>parseFloat(x[5]))}; }catch(e){ return null; }
+}
+function calcEMA(prices, span){ let k=2/(span+1), ema=prices[0]; for(let i=1;i<prices.length;i++) ema=prices[i]*k+ema*(1-k); return ema; }
+function calcRSI(prices){ let g=0,l=0; for(let i=1;i<15;i++){ let diff=prices[prices.length-15+i]-prices[prices.length-15+i-1]; if(diff>0) g+=diff; else l+=-diff; } if(l==0) return 100; let rs=(g/14)/(l/14); return 100-(100/(1+rs)); }
+function calcMACD(prices){ return calcEMA(prices,12)-calcEMA(prices,26); }
+function calcStoch(closes, highs, lows){ let h=Math.max(...highs.slice(-14)), l=Math.min(...lows.slice(-14)), c=closes[closes.length-1]; return ((c-l)/(h-l))*100; }
+function calcBoll(closes){ let avg=closes.slice(-20).reduce((a,b)=>a+b,0)/20; let sd=Math.sqrt(closes.slice(-20).map(x=>(x-avg)**2).reduce((a,b)=>a+b,0)/20); return {upper:avg+2*sd, lower:avg-2*sd, mid:avg}; }
+async function analyze(coin){
+  let totalScore=0, maxScore=0, details=[];
+  for(let tf of ['5m','15m','1h']){
+    let d=await getKlines(coin, tf); if(!d) continue;
+    let last=d.closes[d.closes.length-1];
+    let ema20=calcEMA(d.closes,20), ema50=calcEMA(d.closes,50);
+    let rsi=calcRSI(d.closes), macd=calcMACD(d.closes), stoch=calcStoch(d.closes,d.highs,d.lows);
+    let boll=calcBoll(d.closes);
+    let avgVol=d.vols.reduce((a,b)=>a+b,0)/d.vols.length;
+    let volOk=d.vols[d.vols.length-1] > avgVol;
+    let up=0;
+    if(last>ema20 && ema20>ema50) up++;
+    if(rsi>40 && rsi<70) up++;
+    if(macd>0) up++;
+    if(volOk) up++;
+    if(last>boll.mid && last<boll.upper) up++;
+    if(stoch>20 && stoch<80) up++;
+    if(last>d.closes[d.closes.length-2]) up++;
+    totalScore+=up; maxScore+=7; details.push(`${tf}:${up}/7`);
+  }
+  let conf = Math.round((totalScore/maxScore)*100);
+  return {score:totalScore, max:maxScore, conf, details:details.join(' | ')};
+}
+async function checkAll(){
+  if(!botOn) return;
+  if(data.sigToday>=settings.maxSig){ document.getElementById('status').innerText="Aaj ke "+settings.maxSig+" ho gaye"; return; }
+  document.getElementById('status').innerText="Filter Check... "+new Date().toLocaleTimeString();
+  let fHtml="";
+  for(let coin of getCoins()){
+    if(data.signals.some(s=>s.coin===coin && !s.result)){ fHtml+=`<div class="flex"><span>${coin}</span><span class="yellow">Pending signal hai</span></div>`; continue; }
+    let a=await analyze(coin);
+    let cls = a.conf>=85 ? "green" : a.conf>=70 ? "yellow" : "red";
+    fHtml+=`<div><div class="flex"><span>${coin}</span><b class="${cls}">${a.conf}% - ${a.score}/${a.max}</b></div><div class="bar"><div class="barfill" style="width:${a.conf}%"></div></div><p class="small">${a.details}</p></div>`;
+    if(a.score>=Math.round(settings.minConf/100*21)){ await makeSignal(coin, await getPrice(coin), a); break; }
+  }
+  document.getElementById('filterBox').innerHTML=fHtml;
+}
+async function makeSignal(coin, entry, a){
+  data.sigToday++; data.total++;
+  let target=(entry*1.008).toFixed(4), sl=(entry*0.995).toFixed(4);
+  let s={ id:Date.now(), coin, dir:"LONG ⬆", entry: entry.toFixed(4), target, sl, conf:a.conf, filters:a.details, time: new Date().toLocaleString(), result:null, exitPrice:null, endTime: Date.now()+30*60*1000, leftTxt:"" };
+  data.signals.push(s); saveData(); playAlert();
+}
+function startResultTimer(s){
+  let timer=setInterval(async ()=>{
+    let left = s.endTime - Date.now();
+    if(left<=0){ clearInterval(timer); checkNow(); }
+    else { let m=Math.floor(left/60000), sec=Math.floor((left%60000)/1000); s.leftTxt=`Bacha: ${m}:${sec<10?'0':''}${sec}`; }
+  }, 1000);
+}
+// BACKTEST
+async function runBacktest(){
+  document.getElementById('backtestRes').innerText="Backtest chal raha hai... 10 sec ruko...";
+  let total=0, wins=0;
+  for(let coin of getCoins()){
+    let d=await getKlines(coin,'15m'); if(!d) continue;
+    // Pichle 30 candles par simple check: agar price EMA20 se upar + RSI 40-70 tha to signal maan lo, 2 candle baad price check karo
+    for(let i=50;i<d.closes.length-2;i++){
+      let slice=d.closes.slice(0,i+1);
+      let ema20=calcEMA(slice,20);
+      let rsi=calcRSI(slice.slice(-15));
+      if(slice[i]>ema20 && rsi>40 && rsi<70){ total++; if(d.closes[i+2]>slice[i]) wins++; }
+    }
+  }
+  let acc= total?Math.round(wins/total*100):0;
+  document.getElementById('backtestRes').innerHTML=`🧪 <b>Backtest Result:</b> Total Test Signals: ${total} | Win: ${wins} | <b class="${acc>=60?'green':acc>=40?'yellow':'red'}">Accuracy: ${acc}%</b><br><span class="small">Ye pichle data par hai. Agar 60%+ hai to filter acha hai.</span>`;
+}
+function clearHistory(){ if(confirm("Sari History delete kar dun?")){ localStorage.removeItem('botData'); location.reload(); } }
+updateUI(); checkNow();
 </script>
 </body>
 </html>
