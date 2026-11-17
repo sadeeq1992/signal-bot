@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Live Signal Bot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{background:#0b0e11;color:white;font-family:sans-serif;text-align:center;padding:20px}
+.box{background:#1e2329;padding:20px;border-radius:15px;margin-top:20px}
+h1{color:#f0b90b}
+#price{font-size:40px;color:#0ecb81}
+button{background:#f0b90b;border:none;padding:12px 25px;border-radius:10px;font-weight:bold;font-size:16px}
+</style>
+</head>
+<body>
+<h1>🚀 LIVE SIGNAL BOT</h1>
+<p>BTC / USDT - Live Rate</p>
+<div class="box">
+<div id="price">Loading...</div>
+<p id="signal">Signal Check Ho Raha Hai...</p>
+<p id="time"></p>
+<button onclick="getPrice()">Refresh Signal</button>
+</div>
+<p style="font-size:12px;color:gray">Sirf Signal - No Buy / Sell - Apni Research Zaroor Karo</p>
+<script>
+async function getPrice(){
+  try{
+    let r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+    let d = await r.json();
+    let p = parseFloat(d.price);
+    document.getElementById('price').innerText = "$" + p.toLocaleString();
+    let s = document.getElementById('signal');
+    if(p % 100 < 50){ s.innerText = "🟢 SIGNAL: BUY Zone - Price Neeche Hai"; s.style.color="#0ecb81"; }
+    else { s.innerText = "🔴 SIGNAL: WAIT - Price Upar Hai"; s.style.color="#f6465d"; }
+    document.getElementById('time').innerText = new Date().toLocaleString();
+  }catch(e){ document.getElementById('price').innerText = "Net Error - Dobara Try Karo"; }
+}
+getPrice();
+setInterval(getPrice, 10000);
+</script>
+</body>
+</html>
