@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Signal Bot - PRO MAX</title>
+<title>Signal Bot - PRO MAX V3</title>
 <style>
 *{box-sizing:border-box;font-family:Arial} body{margin:0;background:#0f172a;color:#fff;padding:12px}
 .card{background:#1e293b;border-radius:14px;padding:14px;margin-bottom:12px}
@@ -12,26 +12,30 @@ button{width:100%;padding:14px;border:none;border-radius:12px;font-weight:bold;f
 .btn-green{background:#22c55e;color:#fff}.btn-red{background:#ef4444;color:#fff}.btn-gray{background:#334155;color:#fff;padding:10px;font-size:13px;margin-top:8px}.btn-blue{background:#2563eb;color:#fff;padding:10px;font-size:13px;margin-top:8px}.btn-orange{background:#f97316;color:#fff;padding:10px;font-size:13px;margin-top:8px}
 .flex{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #334155}
 .signal{background:#020617;border-left:4px solid #22c55e;padding:12px;border-radius:10px;margin-top:10px}
+.signal.short{border-left-color:#ef4444}
 .small{font-size:12px;color:#94a3b8}.big{font-size:26px;font-weight:bold}
 .live{width:9px;height:9px;background:#22c55e;border-radius:50%;display:inline-block}
 .up{color:#22c55e}.down{color:#ef4444}
 .badge{font-size:11px;background:#22c55e;color:#fff;padding:3px 8px;border-radius:20px}
+.badgeShort{background:#ef4444}
 .bar{height:8px;background:#334155;border-radius:10px;overflow:hidden;margin-top:4px}
 .barfill{height:100%;background:#22c55e}
 input[type=range]{width:100%} input[type=checkbox]{width:20px;height:20px}
+select{width:100%;padding:10px;border-radius:10px;background:#0f172a;color:#fff;border:1px solid #334155;font-weight:bold}
 canvas{width:100%;height:50px;background:#020617;border-radius:8px;margin-top:4px}
 .setBox{background:#020617;padding:10px;border-radius:10px;margin-top:8px}
 </style>
 </head>
 <body>
-<h2>🤖 Signal Bot <span class="small">PRO MAX</span></h2>
-<p class="small"><span class="live"></span> LIVE | Sound + Chart + Backtest + Settings</p>
+<h2>🤖 Signal Bot <span class="small">PRO MAX V3 - LONG + SHORT + FUTURES</span></h2>
+<p class="small"><span class="live"></span> LIVE | V3 - BTC Filter + LONG/SHORT + Futures Leverage</p>
 
 <div class="card">
 <div class="flex"><span>🎯 Accuracy</span><b class="big" id="acc">--%</b></div>
 <div class="flex"><span class="small" id="accDetail">No signal yet</span><span class="small" id="sigCount">0 / 4 Aaj</span></div>
 <div class="flex"><span>Win Streak</span><b id="streak">0</b></div>
 <div class="flex"><span class="small">Status</span><span class="small" id="status">Band Hai</span></div>
+<div class="flex"><span class="small">BTC Trend</span><span class="small" id="btcTrend">-</span></div>
 <div class="flex"><span class="small">Last Verify</span><span class="small" id="lastVerify">-</span></div>
 <button class="btn-green" id="botBtn" onclick="toggleBot()">▶ BOT START KARO</button>
 <button class="btn-blue" onclick="checkNow()">🔍 ABHI CHECK KARO</button>
@@ -43,12 +47,22 @@ canvas{width:100%;height:50px;background:#020617;border-radius:8px;margin-top:4p
 
 <div class="card">
 <h3>⚙️ Apni Settings</h3>
+<p class="small">Mode:</p>
+<select id="tradeMode" onchange="saveSettings()">
+<option value="FUTURES">⚡ FUTURES - Leverage ke saath</option>
+<option value="SPOT">💰 SPOT - Bina Leverage</option>
+</select>
+<p class="small" style="margin-top:10px">Leverage (Sirf Futures ke liye): <b id="levVal">5x</b></p>
+<input type="range" id="leverage" min="1" max="20" value="5" oninput="document.getElementById('levVal').innerText=this.value+'x'; saveSettings()">
 <p class="small">Min Confidence: <b id="confVal">85%</b></p>
 <input type="range" id="minConf" min="60" max="95" value="85" oninput="document.getElementById('confVal').innerText=this.value+'%'; saveSettings()">
 <p class="small">Din me Max Signals: <b id="maxVal">4</b></p>
 <input type="range" id="maxSig" min="1" max="10" value="4" oninput="document.getElementById('maxVal').innerText=this.value; saveSettings()">
 <div class="setBox" id="coinSelect"></div>
-<p class="small">Sirf tick wale coins par signal aayega. LTC, BTC jo chahiye rakho, baaki hata do.</p>
+<div class="setBox">
+<p class="small">💰 <b>Capital Plan - $100</b></p>
+<p class="small" id="capitalInfo">Capital: $100 | 1 Trade: $10 (10%) | Futures 5x = $50 Position</p>
+</div>
 </div>
 
 <div class="card">
@@ -73,24 +87,33 @@ canvas{width:100%;height:50px;background:#020617;border-radius:8px;margin-top:4p
 
 <script>
 const BASE="https://data-api.binance.vision";
-const ALL_COINS=["BTCUSDT","ETHUSDT","LTCUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"];
+const ALL_COINS=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","LTCUSDT","ADAUSDT","AVAXUSDT","LINKUSDT"];
+const CAPITAL = 100;
+const TRADE_AMOUNT = 10;
 let botOn=false, priceTimer=null, checkTimer=null, verifyTimer=null;
-let settings = JSON.parse(localStorage.getItem('botSettings') || '{"minConf":85,"maxSig":4,"coins":["BTCUSDT","ETHUSDT","LTCUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"]}');
+let settings = JSON.parse(localStorage.getItem('botSettingsV3') || '{"minConf":85,"maxSig":4,"coins":["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","LTCUSDT","ADAUSDT","AVAXUSDT","LINKUSDT"],"mode":"FUTURES","leverage":5}');
 let data = JSON.parse(localStorage.getItem('botData') || '{"total":0,"wins":0,"sigToday":0,"date":"","signals":[],"streak":0}');
 let today = new Date().toDateString();
 if(data.date!==today){ data.sigToday=0; data.date=today; saveData(); }
 function getCoins(){ return settings.coins.length?settings.coins:ALL_COINS; }
+function fmtPrice(p){ if(p<1) return p.toFixed(4); return p.toFixed(2); }
 function saveSettings(){
   settings.minConf=parseInt(document.getElementById('minConf').value);
   settings.maxSig=parseInt(document.getElementById('maxSig').value);
+  settings.mode=document.getElementById('tradeMode').value;
+  settings.leverage=parseInt(document.getElementById('leverage').value);
   settings.coins=[...document.querySelectorAll('.coinChk:checked')].map(e=>e.value);
-  localStorage.setItem('botSettings', JSON.stringify(settings));
+  localStorage.setItem('botSettingsV3', JSON.stringify(settings));
   document.getElementById('sigCount').innerText=data.sigToday+" / "+settings.maxSig+" Aaj";
+  document.getElementById('capitalInfo').innerText = settings.mode==="FUTURES" ? `Capital: $100 | 1 Trade: $10 (10%) | Futures ${settings.leverage}x = $${TRADE_AMOUNT*settings.leverage} Position` : `Capital: $100 | 1 Trade: $10 (10%) | Spot - No Leverage`;
 }
 function buildSettings(){
   document.getElementById('minConf').value=settings.minConf; document.getElementById('confVal').innerText=settings.minConf+"%";
   document.getElementById('maxSig').value=settings.maxSig; document.getElementById('maxVal').innerText=settings.maxSig;
+  document.getElementById('tradeMode').value=settings.mode||"FUTURES";
+  document.getElementById('leverage').value=settings.leverage||5; document.getElementById('levVal').innerText=(settings.leverage||5)+"x";
   document.getElementById('coinSelect').innerHTML=ALL_COINS.map(c=>`<label class="flex"><span>${c}</span><input type="checkbox" class="coinChk" value="${c}" ${settings.coins.includes(c)?'checked':''} onchange="saveSettings()"></label>`).join('');
+  saveSettings();
 }
 buildSettings();
 function saveData(){ localStorage.setItem('botData', JSON.stringify(data)); updateUI(); }
@@ -119,10 +142,10 @@ function renderSignals(){
   [...data.signals].reverse().forEach(s=>{
     let cls = s.result==="WIN" ? "green" : s.result==="LOSS" ? "red" : "yellow";
     let resTxt = s.result ? (s.result==="WIN" ? `✅ VERIFIED WIN - ${s.verifyReason||""} - $${s.entry} -> $${s.exitPrice}` : `❌ VERIFIED LOSS - ${s.verifyReason||""} - $${s.entry} -> $${s.exitPrice}`) : `⏳ VERIFY HONE WALA HAI - ${s.leftTxt||""}`;
-    el.innerHTML+=`<div class="signal"><b>🚀 ${s.coin} ${s.dir}</b> <span class="badge">${s.conf}% Conf</span> <span class="small">${s.time}</span><br>Entry: <b>$${s.entry}</b> | Target: <span class="green">$${s.target}</span> | SL: <span class="red">$${s.sl}</span><br><span class="small">Filters: ${s.filters}</span><br><span class="${cls}">${resTxt}</span></div>`;
+    let isShort = s.dir.includes("SHORT");
+    el.innerHTML+=`<div class="signal ${isShort?'short':''}"><b>${isShort?'📉':'🚀'} ${s.coin} ${s.dir}</b> <span class="badge ${isShort?'badgeShort':''}">${s.conf}% Conf</span> <span class="small">${s.mode||'FUTURES'} ${s.leverage? s.leverage+'x':''}</span><br><span class="small">⏰ Signal: ${s.time} | ✅ Valid Till: ${s.validTillTxt} (30 Min)</span><br>Entry: <b>$${s.entry}</b> | Target: <span class="green">$${s.target}</span> | SL: <span class="red">$${s.sl}</span><br>💰 Trade: $${TRADE_AMOUNT} / $${CAPITAL} | ⚡ Position: $${s.position} | 📈 Expected Profit: <span class="green">+$${s.expProfit}</span> | 📉 Expected Loss: <span class="red">-$${s.expLoss}</span><br><span class="small">Filters: ${s.filters}</span><br><span class="${cls}">${resTxt}</span></div>`;
   });
 }
-// SOUND + VIBRATION
 function playAlert(){
   if(!document.getElementById('soundOn').checked) return;
   try{ if(navigator.vibrate) navigator.vibrate([300,200,300,200,500]); }catch(e){}
@@ -155,16 +178,28 @@ async function checkNow(){
   for(let s of pending){
     let curr=await getPrice(s.coin);
     if(curr===0) continue;
-    if(curr >= parseFloat(s.target)) finishSignal(s, curr, "WIN", "🎯 Target Hit");
-    else if(curr <= parseFloat(s.sl)) finishSignal(s, curr, "LOSS", "🛑 Stoploss Hit");
-    else if(Date.now() >= s.endTime){
-      if(curr > parseFloat(s.entry)) finishSignal(s, curr, "WIN", "⏰ 30min - Price Upar");
-      else finishSignal(s, curr, "LOSS", "⏰ 30min - Price Neeche");
+    let entry=parseFloat(s.entry), target=parseFloat(s.target), sl=parseFloat(s.sl);
+    let isShort = s.dir.includes("SHORT");
+    // V3: LONG aur SHORT dono ke liye alag verify
+    if(!isShort){
+      if(curr >= target) finishSignal(s, curr, "WIN", "🎯 Target Hit");
+      else if(curr <= sl) finishSignal(s, curr, "LOSS", "🛑 Stoploss Hit");
+      else if(Date.now() >= s.endTime){
+        if(curr > entry) finishSignal(s, curr, "WIN", "⏰ 30min - Price Upar");
+        else finishSignal(s, curr, "LOSS", "⏰ 30min - Price Neeche");
+      }
+    } else {
+      if(curr <= target) finishSignal(s, curr, "WIN", "🎯 Target Hit");
+      else if(curr >= sl) finishSignal(s, curr, "LOSS", "🛑 Stoploss Hit");
+      else if(Date.now() >= s.endTime){
+        if(curr < entry) finishSignal(s, curr, "WIN", "⏰ 30min - Price Neeche");
+        else finishSignal(s, curr, "LOSS", "⏰ 30min - Price Upar");
+      }
     }
   }
 }
 function finishSignal(s, curr, result, reason){
-  s.exitPrice=curr.toFixed(4); s.result=result; s.verifyReason=reason;
+  s.exitPrice=fmtPrice(curr); s.result=result; s.verifyReason=reason;
   if(result==="WIN"){ data.wins++; data.streak=(data.streak||0)+1; } else data.streak=0;
   saveData();
 }
@@ -184,11 +219,10 @@ async function updatePrices(){
   let html="";
   for(let c of getCoins()){
     let p=await getPrice(c);
-    let k=await getKlines(c,'15m');
     let prev = window['prev_'+c] || p;
     let arrow = p>=prev ? "▲" : "▼"; let cls = p>=prev ? "up" : "down";
     window['prev_'+c]=p;
-    html+=`<div class="flex"><span>${c}</span><b class="${cls}">${arrow} $${p.toFixed(2)}</b></div><canvas id="chart_${c}"></canvas>`;
+    html+=`<div class="flex"><span>${c}</span><b class="${cls}">${arrow} $${fmtPrice(p)}</b></div><canvas id="chart_${c}"></canvas>`;
   }
   document.getElementById('prices').innerHTML=html;
   for(let c of getCoins()){
@@ -204,47 +238,87 @@ function calcRSI(prices){ let g=0,l=0; for(let i=1;i<15;i++){ let diff=prices[pr
 function calcMACD(prices){ return calcEMA(prices,12)-calcEMA(prices,26); }
 function calcStoch(closes, highs, lows){ let h=Math.max(...highs.slice(-14)), l=Math.min(...lows.slice(-14)), c=closes[closes.length-1]; return ((c-l)/(h-l))*100; }
 function calcBoll(closes){ let avg=closes.slice(-20).reduce((a,b)=>a+b,0)/20; let sd=Math.sqrt(closes.slice(-20).map(x=>(x-avg)**2).reduce((a,b)=>a+b,0)/20); return {upper:avg+2*sd, lower:avg-2*sd, mid:avg}; }
+async function getBTCTrend(){
+  let d = await getKlines("BTCUSDT","15m"); if(!d) return "UNKNOWN";
+  let last = d.closes[d.closes.length-1];
+  let ema20 = calcEMA(d.closes,20), ema50 = calcEMA(d.closes,50);
+  let change = ((last - d.closes[d.closes.length-11]) / d.closes[d.closes.length-11])*100;
+  if(last > ema20 && ema20 > ema50 && change > 0.1) return "UP";
+  if(last < ema20 && ema20 < ema50 && change < -0.1) return "DOWN";
+  return "SIDEWAYS";
+}
+// V3: LONG + SHORT dono ka score
 async function analyze(coin){
-  let totalScore=0, maxScore=0, details=[];
+  let longScore=0, shortScore=0, maxScore=0, details=[];
+  let longTF=0, shortTF=0;
   for(let tf of ['5m','15m','1h']){
     let d=await getKlines(coin, tf); if(!d) continue;
     let last=d.closes[d.closes.length-1];
     let ema20=calcEMA(d.closes,20), ema50=calcEMA(d.closes,50);
     let rsi=calcRSI(d.closes), macd=calcMACD(d.closes), stoch=calcStoch(d.closes,d.highs,d.lows);
     let boll=calcBoll(d.closes);
-    let avgVol=d.vols.reduce((a,b)=>a+b,0)/d.vols.length;
-    let volOk=d.vols[d.vols.length-1] > avgVol;
-    let up=0;
-    if(last>ema20 && ema20>ema50) up++;
-    if(rsi>40 && rsi<70) up++;
-    if(macd>0) up++;
-    if(volOk) up++;
-    if(last>boll.mid && last<boll.upper) up++;
-    if(stoch>20 && stoch<80) up++;
-    if(last>d.closes[d.closes.length-2]) up++;
-    totalScore+=up; maxScore+=7; details.push(`${tf}:${up}/7`);
+    let avgVol=d.vols.slice(-20).reduce((a,b)=>a+b,0)/20;
+    let volOk=d.vols[d.vols.length-1] > avgVol * 1.2;
+    let bandWidth = (boll.upper - boll.lower)/boll.mid*100;
+    let isSideways = bandWidth < 0.4;
+    let up=0, down=0;
+    if(last>ema20 && ema20>ema50) up++; else if(last<ema20 && ema20<ema50) down++;
+    if(rsi>45 && rsi<68) up++; else if(rsi>32 && rsi<55) down++;
+    if(macd>0) up++; else if(macd<0) down++;
+    if(volOk) { up++; down++; }
+    if(last>boll.mid && last<boll.upper) up++; else if(last<boll.mid && last>boll.lower) down++;
+    if(stoch>25 && stoch<75) { up++; down++; }
+    if(last>d.closes[d.closes.length-2]) up++; else down++;
+    if(!isSideways) { up++; down++; } else { up--; down--; }
+    longScore+=up; shortScore+=down; maxScore+=8;
+    details.push(`${tf}: L${up}/8 S${down}/8 ${isSideways?'[SIDEWAYS]':''}`);
+    if(up>=6) longTF++; if(down>=6) shortTF++;
   }
-  let conf = Math.round((totalScore/maxScore)*100);
-  return {score:totalScore, max:maxScore, conf, details:details.join(' | ')};
+  let isLong = longScore >= shortScore;
+  let conf = Math.round(((isLong?longScore:shortScore)/maxScore)*100);
+  return {longScore, shortScore, max:maxScore, conf, details:details.join(' | '), longTF, shortTF, dir: isLong?"LONG":"SHORT"};
 }
 async function checkAll(){
   if(!botOn) return;
   if(data.sigToday>=settings.maxSig){ document.getElementById('status').innerText="Aaj ke "+settings.maxSig+" ho gaye"; return; }
   document.getElementById('status').innerText="Filter Check... "+new Date().toLocaleTimeString();
+  let btcTrend = await getBTCTrend();
+  document.getElementById('btcTrend').innerText = btcTrend==="UP" ? "🟢 UP - LONG Only" : btcTrend==="DOWN" ? "🔴 DOWN - SHORT Only" : "🟡 SIDEWAYS - No Signal";
+  document.getElementById('btcTrend').className = btcTrend==="UP" ? "small green" : btcTrend==="DOWN" ? "small red" : "small yellow";
+  if(btcTrend==="SIDEWAYS" || btcTrend==="UNKNOWN"){
+    document.getElementById('filterBox').innerHTML=`<p class="small">⛔ BTC Trend ${btcTrend} hai. Sideways me koi signal nahi dega.</p>`;
+    return;
+  }
   let fHtml="";
   for(let coin of getCoins()){
     if(data.signals.some(s=>s.coin===coin && !s.result)){ fHtml+=`<div class="flex"><span>${coin}</span><span class="yellow">Pending signal hai</span></div>`; continue; }
     let a=await analyze(coin);
     let cls = a.conf>=85 ? "green" : a.conf>=70 ? "yellow" : "red";
-    fHtml+=`<div><div class="flex"><span>${coin}</span><b class="${cls}">${a.conf}% - ${a.score}/${a.max}</b></div><div class="bar"><div class="barfill" style="width:${a.conf}%"></div></div><p class="small">${a.details}</p></div>`;
-    if(a.score>=Math.round(settings.minConf/100*21)){ await makeSignal(coin, await getPrice(coin), a); break; }
+    fHtml+=`<div><div class="flex"><span>${coin}</span><b class="${cls}">${a.dir} ${a.conf}% - L:${a.longScore} S:${a.shortScore}/${a.max}</b></div><div class="bar"><div class="barfill" style="width:${a.conf}%"></div></div><p class="small">${a.details}</p></div>`;
+    // V3: BTC ke hisab se hi LONG ya SHORT allow
+    let allowLong = btcTrend==="UP" && a.dir==="LONG" && a.longTF>=2;
+    let allowShort = btcTrend==="DOWN" && a.dir==="SHORT" && a.shortTF>=2;
+    if(a.conf>=settings.minConf && (allowLong || allowShort)){
+      await makeSignal(coin, await getPrice(coin), a, allowLong?"LONG":"SHORT");
+      break;
+    }
   }
   document.getElementById('filterBox').innerHTML=fHtml;
 }
-async function makeSignal(coin, entry, a){
+async function makeSignal(coin, entry, a, dir){
   data.sigToday++; data.total++;
-  let target=(entry*1.008).toFixed(4), sl=(entry*0.995).toFixed(4);
-  let s={ id:Date.now(), coin, dir:"LONG ⬆", entry: entry.toFixed(4), target, sl, conf:a.conf, filters:a.details, time: new Date().toLocaleString(), result:null, exitPrice:null, endTime: Date.now()+30*60*1000, leftTxt:"" };
+  let isShort = dir==="SHORT";
+  let target, sl;
+  // V3: LONG: Target +0.6%, SL -0.8% | SHORT: Target -0.6%, SL +0.8%
+  if(!isShort){ target=(entry*1.006).toFixed(4); sl=(entry*0.992).toFixed(4); }
+  else { target=(entry*0.994).toFixed(4); sl=(entry*1.008).toFixed(4); }
+  let lev = settings.mode==="FUTURES" ? settings.leverage : 1;
+  let position = TRADE_AMOUNT * lev;
+  let expProfit = (TRADE_AMOUNT * 0.006 * lev).toFixed(2);
+  let expLoss = (TRADE_AMOUNT * 0.008 * lev).toFixed(2);
+  let now = new Date();
+  let validTill = new Date(now.getTime()+30*60*1000);
+  let s={ id:Date.now(), coin, dir: isShort?"SHORT ⬇":"LONG ⬆", entry: fmtPrice(entry), target, sl, conf:a.conf, filters:a.details, time: now.toLocaleString(), validTillTxt: validTill.toLocaleTimeString(), result:null, exitPrice:null, endTime: Date.now()+30*60*1000, leftTxt:"", expProfit, expLoss, mode: settings.mode, leverage: lev, position };
   data.signals.push(s); saveData(); playAlert();
 }
 function startResultTimer(s){
@@ -254,22 +328,20 @@ function startResultTimer(s){
     else { let m=Math.floor(left/60000), sec=Math.floor((left%60000)/1000); s.leftTxt=`Bacha: ${m}:${sec<10?'0':''}${sec}`; }
   }, 1000);
 }
-// BACKTEST
 async function runBacktest(){
-  document.getElementById('backtestRes').innerText="Backtest chal raha hai... 10 sec ruko...";
+  document.getElementById('backtestRes').innerText="Backtest chal raha hai...";
   let total=0, wins=0;
   for(let coin of getCoins()){
     let d=await getKlines(coin,'15m'); if(!d) continue;
-    // Pichle 30 candles par simple check: agar price EMA20 se upar + RSI 40-70 tha to signal maan lo, 2 candle baad price check karo
     for(let i=50;i<d.closes.length-2;i++){
       let slice=d.closes.slice(0,i+1);
       let ema20=calcEMA(slice,20);
       let rsi=calcRSI(slice.slice(-15));
-      if(slice[i]>ema20 && rsi>40 && rsi<70){ total++; if(d.closes[i+2]>slice[i]) wins++; }
+      if(slice[i]>ema20 && rsi>45 && rsi<68){ total++; if(d.closes[i+2]>slice[i]) wins++; }
     }
   }
   let acc= total?Math.round(wins/total*100):0;
-  document.getElementById('backtestRes').innerHTML=`🧪 <b>Backtest Result:</b> Total Test Signals: ${total} | Win: ${wins} | <b class="${acc>=60?'green':acc>=40?'yellow':'red'}">Accuracy: ${acc}%</b><br><span class="small">Ye pichle data par hai. Agar 60%+ hai to filter acha hai.</span>`;
+  document.getElementById('backtestRes').innerHTML=`🧪 <b>Backtest V3:</b> Total: ${total} | Win: ${wins} | <b>Accuracy: ${acc}%</b>`;
 }
 function clearHistory(){ if(confirm("Sari History delete kar dun?")){ localStorage.removeItem('botData'); location.reload(); } }
 updateUI(); checkNow();
